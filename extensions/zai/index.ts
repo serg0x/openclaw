@@ -50,26 +50,10 @@ function parseApiKeyList(raw?: string): string[] {
     .filter(Boolean);
 }
 
-function collectPrefixedApiKeys(env: NodeJS.ProcessEnv, prefix: string): string[] {
-  const entries = Object.entries(env)
-    .filter(([name]) => name.startsWith(prefix) && name.length > prefix.length)
-    .toSorted(([a], [b]) => {
-      const suffixA = a.slice(prefix.length);
-      const suffixB = b.slice(prefix.length);
-      const numberA = Number.parseInt(suffixA, 10);
-      const numberB = Number.parseInt(suffixB, 10);
-      const hasNumberA = Number.isFinite(numberA);
-      const hasNumberB = Number.isFinite(numberB);
-      if (hasNumberA && hasNumberB && numberA !== numberB) {
-        return numberA - numberB;
-      }
-      if (hasNumberA !== hasNumberB) {
-        return hasNumberA ? -1 : 1;
-      }
-      return a.localeCompare(b);
-    });
+function collectNamedApiKeys(env: NodeJS.ProcessEnv, names: readonly string[]): string[] {
   const keys: string[] = [];
-  for (const [, value] of entries) {
+  for (const name of names) {
+    const value = env[name];
     const resolved = normalizeOptionalSecretInput(value);
     if (resolved) {
       keys.push(resolved);
@@ -139,7 +123,7 @@ function collectZaiRotationApiKeys(params: {
     add(value);
   }
   add(params.env.ZAI_API_KEY);
-  for (const value of collectPrefixedApiKeys(params.env, "ZAI_API_KEY_")) {
+  for (const value of collectNamedApiKeys(params.env, ["ZAI_API_KEY_1", "ZAI_API_KEY_2"])) {
     add(value);
   }
   add(params.env.Z_AI_API_KEY);

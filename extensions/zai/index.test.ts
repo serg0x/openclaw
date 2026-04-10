@@ -431,6 +431,40 @@ describe("zai provider plugin", () => {
     ]);
   });
 
+  it("ignores unregistered numbered Z.AI API key env vars beyond the documented pair", async () => {
+    const provider = await registerSingleProviderPlugin(plugin);
+
+    const profiles = provider.resolveExternalAuthProfiles?.({
+      env: {
+        ZAI_API_KEY_1: "sk-zai-next",
+        ZAI_API_KEY_3: "sk-zai-ignored",
+      },
+      store: {
+        version: 1,
+        profiles: {
+          "zai:default": {
+            type: "api_key",
+            provider: "zai",
+            key: "sk-zai-primary",
+          },
+        },
+      },
+    } as never);
+
+    expect(profiles).toEqual([
+      {
+        profileId: "zai:runtime-env-1",
+        persistence: "runtime-only",
+        credential: {
+          type: "api_key",
+          provider: "zai",
+          key: "sk-zai-next",
+          displayName: "Z.AI env key 1",
+        },
+      },
+    ]);
+  });
+
   it("rebuilds the same runtime env profiles when the store already includes them", async () => {
     const provider = await registerSingleProviderPlugin(plugin);
 
