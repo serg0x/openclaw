@@ -158,10 +158,10 @@ export function resolveAuthProfileOrder(params: {
       .toSorted((a, b) => a.cooldownUntil - b.cooldownUntil)
       .map((entry) => entry.profileId);
 
-    const ordered = prioritizeProfiles(
-      [...available, ...cooldownSorted],
-      highestPriorityExternalProfiles,
-    );
+    const ordered = [
+      ...prioritizeProfiles(available, highestPriorityExternalProfiles),
+      ...cooldownSorted,
+    ];
 
     // Still put preferredProfile first if specified
     if (preferredProfile && ordered.includes(preferredProfile)) {
@@ -173,10 +173,7 @@ export function resolveAuthProfileOrder(params: {
   // Otherwise, use round-robin: sort by lastUsed (oldest first)
   // preferredProfile goes first if specified (for explicit user choice)
   // lastGood is NOT prioritized - that would defeat round-robin
-  const sorted = prioritizeProfiles(
-    orderProfilesByMode(deduped, store),
-    highestPriorityExternalProfiles,
-  );
+  const sorted = orderProfilesByMode(deduped, store, highestPriorityExternalProfiles);
 
   if (preferredProfile && sorted.includes(preferredProfile)) {
     return [preferredProfile, ...sorted.filter((e) => e !== preferredProfile)];
@@ -195,7 +192,11 @@ function prioritizeProfiles(order: string[], prioritized: string[]): string[] {
   return [...front, ...rest];
 }
 
-function orderProfilesByMode(order: string[], store: AuthProfileStore): string[] {
+function orderProfilesByMode(
+  order: string[],
+  store: AuthProfileStore,
+  prioritized: string[] = [],
+): string[] {
   const now = Date.now();
 
   // Partition into available and in-cooldown
@@ -220,16 +221,19 @@ function orderProfilesByMode(order: string[], store: AuthProfileStore): string[]
 
   // Primary sort: type preference (oauth > token > api_key).
   // Secondary sort: lastUsed (oldest first for round-robin within type).
-  const sorted = scored
-    .toSorted((a, b) => {
-      // First by type (oauth > token > api_key)
-      if (a.typeScore !== b.typeScore) {
-        return a.typeScore - b.typeScore;
-      }
-      // Then by lastUsed (oldest first)
-      return a.lastUsed - b.lastUsed;
-    })
-    .map((entry) => entry.profileId);
+  const sorted = prioritizeProfiles(
+    scored
+      .toSorted((a, b) => {
+        // First by type (oauth > token > api_key)
+        if (a.typeScore !== b.typeScore) {
+          return a.typeScore - b.typeScore;
+        }
+        // Then by lastUsed (oldest first)
+        return a.lastUsed - b.lastUsed;
+      })
+      .map((entry) => entry.profileId),
+    prioritized,
+  );
 
   // Append cooldown profiles at the end (sorted by cooldown expiry, soonest first)
   const cooldownSorted = inCooldown

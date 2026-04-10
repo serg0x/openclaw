@@ -162,4 +162,85 @@ describe("resolveAuthProfileOrder runtime-only external profiles", () => {
 
     expect(order).toEqual(["zai:runtime-live-override", "zai:default"]);
   });
+
+  it("keeps highest-priority runtime-only external profiles behind available profiles when cooled down", () => {
+    listRuntimeOnlyExternalAuthProfilesMock.mockReturnValueOnce([
+      { profileId: "zai:runtime-live-override", selectionPriority: "highest" },
+    ]);
+
+    const order = resolveAuthProfileOrder({
+      store: {
+        version: 1,
+        profiles: {
+          "zai:default": {
+            type: "api_key",
+            provider: "zai",
+            key: "sk-zai-default",
+          },
+          "zai:runtime-live-override": {
+            type: "api_key",
+            provider: "zai",
+            key: "sk-zai-live",
+          },
+        },
+        usageStats: {
+          "zai:runtime-live-override": {
+            cooldownUntil: Date.now() + 60_000,
+          },
+        },
+      },
+      provider: "zai",
+    });
+
+    expect(order).toEqual(["zai:default", "zai:runtime-live-override"]);
+  });
+
+  it("keeps cooled-down highest-priority runtime-only external profiles behind available profiles in explicit order mode", () => {
+    listRuntimeOnlyExternalAuthProfilesMock.mockReturnValueOnce([
+      { profileId: "zai:runtime-live-override", selectionPriority: "highest" },
+    ]);
+
+    const order = resolveAuthProfileOrder({
+      cfg: {
+        auth: {
+          order: {
+            zai: ["zai:default", "zai:runtime-live-override"],
+          },
+          profiles: {
+            "zai:default": {
+              provider: "zai",
+              mode: "api_key",
+            },
+            "zai:runtime-live-override": {
+              provider: "zai",
+              mode: "api_key",
+            },
+          },
+        },
+      },
+      store: {
+        version: 1,
+        profiles: {
+          "zai:default": {
+            type: "api_key",
+            provider: "zai",
+            key: "sk-zai-default",
+          },
+          "zai:runtime-live-override": {
+            type: "api_key",
+            provider: "zai",
+            key: "sk-zai-live",
+          },
+        },
+        usageStats: {
+          "zai:runtime-live-override": {
+            cooldownUntil: Date.now() + 60_000,
+          },
+        },
+      },
+      provider: "zai",
+    });
+
+    expect(order).toEqual(["zai:default", "zai:runtime-live-override"]);
+  });
 });
