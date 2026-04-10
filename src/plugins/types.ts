@@ -1054,7 +1054,6 @@ export type ProviderModelSelectedContext = {
   agentDir?: string;
   workspaceDir?: string;
 };
-
 export type ProviderDeferSyntheticProfileAuthContext = {
   config?: OpenClawConfig;
   provider: string;

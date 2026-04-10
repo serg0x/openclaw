@@ -6,6 +6,7 @@ import {
   type ProviderResolveDynamicModelContext,
   type ProviderRuntimeModel,
 } from "openclaw/plugin-sdk/plugin-entry";
+import { listProfilesForProvider, type AuthProfileStore } from "openclaw/plugin-sdk/provider-auth";
 import {
   applyAuthProfileConfig,
   buildApiKeyCredential,
@@ -31,10 +32,117 @@ import { applyZaiConfig, applyZaiProviderConfig, ZAI_DEFAULT_MODEL_REF } from ".
 const PROVIDER_ID = "zai";
 const GLM5_TEMPLATE_MODEL_ID = "glm-4.7";
 const PROFILE_ID = "zai:default";
+const ENV_ROTATION_PROFILE_ID_PREFIX = "zai:runtime-env";
+const KEY_SPLIT_RE = /[\s,;]+/g;
 const OPENAI_COMPATIBLE_REPLAY_HOOKS = buildProviderReplayFamilyHooks({
   family: "openai-compatible",
 });
 const ZAI_TOOL_STREAM_HOOKS = buildProviderStreamFamilyHooks("tool-stream-default-on");
+
+function parseApiKeyList(raw?: string): string[] {
+  if (!raw) {
+    return [];
+  }
+  return raw
+    .split(KEY_SPLIT_RE)
+    .map((value) => value.trim())
+    .filter(Boolean);
+}
+
+function collectPrefixedApiKeys(env: NodeJS.ProcessEnv, prefix: string): string[] {
+  const entries = Object.entries(env)
+    .filter(([name]) => name.startsWith(prefix) && name.length > prefix.length)
+    .toSorted(([a], [b]) => {
+      const suffixA = a.slice(prefix.length);
+      const suffixB = b.slice(prefix.length);
+      const numberA = Number.parseInt(suffixA, 10);
+      const numberB = Number.parseInt(suffixB, 10);
+      const hasNumberA = Number.isFinite(numberA);
+      const hasNumberB = Number.isFinite(numberB);
+      if (hasNumberA && hasNumberB && numberA !== numberB) {
+        return numberA - numberB;
+      }
+      if (hasNumberA !== hasNumberB) {
+        return hasNumberA ? -1 : 1;
+      }
+      return a.localeCompare(b);
+    });
+  const keys: string[] = [];
+  for (const [, value] of entries) {
+    const resolved = normalizeOptionalSecretInput(value);
+    if (resolved) {
+      keys.push(resolved);
+    }
+  }
+  return keys;
+}
+
+function collectExistingZaiApiKeys(store: AuthProfileStore): Set<string> {
+  const existing = new Set<string>();
+  for (const profileId of listProfilesForProvider(store, PROVIDER_ID)) {
+    if (profileId.startsWith(`${ENV_ROTATION_PROFILE_ID_PREFIX}-`)) {
+      continue;
+    }
+    const credential = store.profiles[profileId];
+    if (credential?.type !== "api_key") {
+      continue;
+    }
+    const key = normalizeOptionalSecretInput(credential.key);
+    if (key) {
+      existing.add(key);
+    }
+  }
+  return existing;
+}
+
+function collectZaiRotationApiKeys(params: {
+  env: NodeJS.ProcessEnv;
+  store: AuthProfileStore;
+}): string[] {
+  const liveOverride = normalizeOptionalSecretInput(params.env.OPENCLAW_LIVE_ZAI_KEY);
+  if (liveOverride) {
+    return [liveOverride];
+  }
+
+  const seen = collectExistingZaiApiKeys(params.store);
+  const apiKeys: string[] = [];
+  const add = (value?: string) => {
+    const resolved = normalizeOptionalSecretInput(value);
+    if (!resolved || seen.has(resolved)) {
+      return;
+    }
+    seen.add(resolved);
+    apiKeys.push(resolved);
+  };
+
+  for (const value of parseApiKeyList(params.env.ZAI_API_KEYS)) {
+    add(value);
+  }
+  add(params.env.ZAI_API_KEY);
+  for (const value of collectPrefixedApiKeys(params.env, "ZAI_API_KEY_")) {
+    add(value);
+  }
+  add(params.env.Z_AI_API_KEY);
+
+  return apiKeys;
+}
+
+function resolveZaiEnvRotationProfiles(ctx: { env: NodeJS.ProcessEnv; store: AuthProfileStore }) {
+  const apiKeys = collectZaiRotationApiKeys(ctx);
+  if (apiKeys.length < 2) {
+    return undefined;
+  }
+  return apiKeys.map((apiKey, index) => ({
+    profileId: `${ENV_ROTATION_PROFILE_ID_PREFIX}-${index + 1}`,
+    persistence: "runtime-only" as const,
+    credential: {
+      type: "api_key" as const,
+      provider: PROVIDER_ID,
+      key: apiKey,
+      displayName: `Z.AI env key ${index + 1}`,
+    },
+  }));
+}
 
 function resolveGlm5ForwardCompatModel(
   ctx: ProviderResolveDynamicModelContext,
@@ -279,6 +387,7 @@ export default definePluginEntry({
           endpoint: "cn",
         }),
       ],
+      resolveExternalAuthProfiles: (ctx) => resolveZaiEnvRotationProfiles(ctx),
       resolveDynamicModel: (ctx) => resolveGlm5ForwardCompatModel(ctx),
       ...OPENAI_COMPATIBLE_REPLAY_HOOKS,
       prepareExtraParams: (ctx) => {

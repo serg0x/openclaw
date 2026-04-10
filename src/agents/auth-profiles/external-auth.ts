@@ -1,6 +1,6 @@
 import type { ProviderExternalAuthProfile } from "../../plugins/provider-external-auth.types.js";
 import { resolveExternalAuthProfilesWithPlugins } from "../../plugins/provider-runtime.js";
-import type { AuthProfileStore, OAuthCredential } from "./types.js";
+import type { AuthProfileCredential, AuthProfileStore } from "./types.js";
 
 type ExternalAuthProfileMap = Map<string, ProviderExternalAuthProfile>;
 type ResolveExternalAuthProfiles = typeof resolveExternalAuthProfilesWithPlugins;
@@ -58,20 +58,47 @@ function resolveExternalAuthProfileMap(params: {
   return resolved;
 }
 
-function oauthCredentialMatches(a: OAuthCredential, b: OAuthCredential): boolean {
-  return (
-    a.type === b.type &&
-    a.provider === b.provider &&
-    a.access === b.access &&
-    a.refresh === b.refresh &&
-    a.expires === b.expires &&
-    a.clientId === b.clientId &&
-    a.email === b.email &&
-    a.displayName === b.displayName &&
-    a.enterpriseUrl === b.enterpriseUrl &&
-    a.projectId === b.projectId &&
-    a.accountId === b.accountId
-  );
+function authCredentialMatches(a: AuthProfileCredential, b: AuthProfileCredential): boolean {
+  if (a.type !== b.type || a.provider !== b.provider) {
+    return false;
+  }
+
+  if (a.type === "oauth" && b.type === "oauth") {
+    return (
+      a.access === b.access &&
+      a.refresh === b.refresh &&
+      a.expires === b.expires &&
+      a.clientId === b.clientId &&
+      a.email === b.email &&
+      a.displayName === b.displayName &&
+      a.enterpriseUrl === b.enterpriseUrl &&
+      a.projectId === b.projectId &&
+      a.accountId === b.accountId &&
+      a.managedBy === b.managedBy
+    );
+  }
+
+  if (a.type === "api_key" && b.type === "api_key") {
+    return (
+      a.key === b.key &&
+      a.email === b.email &&
+      a.displayName === b.displayName &&
+      JSON.stringify(a.keyRef ?? null) === JSON.stringify(b.keyRef ?? null) &&
+      JSON.stringify(a.metadata ?? null) === JSON.stringify(b.metadata ?? null)
+    );
+  }
+
+  if (a.type === "token" && b.type === "token") {
+    return (
+      a.token === b.token &&
+      a.expires === b.expires &&
+      a.email === b.email &&
+      a.displayName === b.displayName &&
+      JSON.stringify(a.tokenRef ?? null) === JSON.stringify(b.tokenRef ?? null)
+    );
+  }
+
+  return false;
 }
 
 export function overlayExternalAuthProfiles(
@@ -97,7 +124,7 @@ export function overlayExternalAuthProfiles(
 export function shouldPersistExternalAuthProfile(params: {
   store: AuthProfileStore;
   profileId: string;
-  credential: OAuthCredential;
+  credential: AuthProfileCredential;
   agentDir?: string;
   env?: NodeJS.ProcessEnv;
 }): boolean {
@@ -109,7 +136,7 @@ export function shouldPersistExternalAuthProfile(params: {
   if (!external || external.persistence === "persisted") {
     return true;
   }
-  return !oauthCredentialMatches(external.credential, params.credential);
+  return !authCredentialMatches(external.credential, params.credential);
 }
 
 // Compat aliases while file/function naming catches up.

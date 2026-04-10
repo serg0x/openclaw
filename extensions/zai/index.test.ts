@@ -215,4 +215,128 @@ describe("zai provider plugin", () => {
 
     expect(capturedPayload).not.toHaveProperty("tool_stream");
   });
+
+  it("exposes runtime-only auth profiles for multiple env API keys", async () => {
+    const provider = await registerSingleProviderPlugin(plugin);
+
+    const profiles = provider.resolveExternalAuthProfiles?.({
+      env: {
+        ZAI_API_KEYS: "sk-zai-a; sk-zai-b",
+        ZAI_API_KEY: "sk-zai-primary",
+        ZAI_API_KEY_2: "sk-zai-2",
+        ZAI_API_KEY_1: "sk-zai-1",
+        Z_AI_API_KEY: "sk-zai-legacy",
+      },
+      store: {
+        version: 1,
+        profiles: {
+          "zai:default": {
+            type: "api_key",
+            provider: "zai",
+            key: "sk-zai-primary",
+          },
+        },
+      },
+    } as never);
+
+    expect(profiles).toEqual([
+      {
+        profileId: "zai:runtime-env-1",
+        persistence: "runtime-only",
+        credential: {
+          type: "api_key",
+          provider: "zai",
+          key: "sk-zai-a",
+          displayName: "Z.AI env key 1",
+        },
+      },
+      {
+        profileId: "zai:runtime-env-2",
+        persistence: "runtime-only",
+        credential: {
+          type: "api_key",
+          provider: "zai",
+          key: "sk-zai-b",
+          displayName: "Z.AI env key 2",
+        },
+      },
+      {
+        profileId: "zai:runtime-env-3",
+        persistence: "runtime-only",
+        credential: {
+          type: "api_key",
+          provider: "zai",
+          key: "sk-zai-1",
+          displayName: "Z.AI env key 3",
+        },
+      },
+      {
+        profileId: "zai:runtime-env-4",
+        persistence: "runtime-only",
+        credential: {
+          type: "api_key",
+          provider: "zai",
+          key: "sk-zai-2",
+          displayName: "Z.AI env key 4",
+        },
+      },
+      {
+        profileId: "zai:runtime-env-5",
+        persistence: "runtime-only",
+        credential: {
+          type: "api_key",
+          provider: "zai",
+          key: "sk-zai-legacy",
+          displayName: "Z.AI env key 5",
+        },
+      },
+    ]);
+  });
+
+  it("does not create env rotation profiles for a single live override key", async () => {
+    const provider = await registerSingleProviderPlugin(plugin);
+
+    const profiles = provider.resolveExternalAuthProfiles?.({
+      env: {
+        OPENCLAW_LIVE_ZAI_KEY: "sk-zai-live",
+        ZAI_API_KEYS: "sk-zai-a,sk-zai-b",
+      },
+      store: {
+        version: 1,
+        profiles: {},
+      },
+    } as never);
+
+    expect(profiles).toBeUndefined();
+  });
+
+  it("rebuilds the same runtime env profiles when the store already includes them", async () => {
+    const provider = await registerSingleProviderPlugin(plugin);
+
+    const profiles = provider.resolveExternalAuthProfiles?.({
+      env: {
+        ZAI_API_KEYS: "sk-zai-a,sk-zai-b",
+      },
+      store: {
+        version: 1,
+        profiles: {
+          "zai:runtime-env-1": {
+            type: "api_key",
+            provider: "zai",
+            key: "sk-zai-a",
+          },
+          "zai:runtime-env-2": {
+            type: "api_key",
+            provider: "zai",
+            key: "sk-zai-b",
+          },
+        },
+      },
+    } as never);
+
+    expect(profiles?.map((profile) => profile.profileId)).toEqual([
+      "zai:runtime-env-1",
+      "zai:runtime-env-2",
+    ]);
+  });
 });

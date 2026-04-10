@@ -1,4 +1,7 @@
-import type { AuthProfileStore, OAuthCredential } from "../agents/auth-profiles/types.js";
+import type {
+  AuthProfileCredential,
+  AuthProfileStore,
+} from "../agents/auth-profiles/types.js";
 import type { ModelProviderAuthMode, ModelProviderConfig } from "../config/types.js";
 import type { OpenClawConfig } from "../config/types.openclaw.js";
 
@@ -27,7 +30,7 @@ export type ProviderResolveExternalAuthProfilesContext =
 
 export type ProviderExternalOAuthProfile = {
   profileId: string;
-  credential: OAuthCredential;
+  credential: AuthProfileCredential;
   persistence?: "runtime-only" | "persisted";
 };
 
