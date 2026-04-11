@@ -355,6 +355,33 @@ describe("zai provider plugin", () => {
     ]);
   });
 
+  it("treats a single-item ZAI_API_KEYS list as usable auth when no stored profile exists", async () => {
+    const provider = await registerSingleProviderPlugin(plugin);
+
+    const profiles = provider.resolveExternalAuthProfiles?.({
+      env: {
+        ZAI_API_KEYS: "sk-zai-single",
+      },
+      store: {
+        version: 1,
+        profiles: {},
+      },
+    } as never);
+
+    expect(profiles).toEqual([
+      {
+        profileId: "zai:runtime-env-1",
+        persistence: "runtime-only",
+        credential: {
+          type: "api_key",
+          provider: "zai",
+          key: "sk-zai-single",
+          displayName: "Z.AI env key 1",
+        },
+      },
+    ]);
+  });
+
   it("counts keyRef-backed stored api-key profiles when deciding to emit env rotation", async () => {
     const provider = await registerSingleProviderPlugin(plugin);
 

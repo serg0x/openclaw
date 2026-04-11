@@ -151,7 +151,10 @@ function resolveZaiEnvRotationProfiles(ctx: { env: NodeJS.ProcessEnv; store: Aut
 
   const apiKeys = collectZaiRotationApiKeys(ctx);
   const existingApiKeyCount = listStoredZaiApiKeyProfileIds(ctx.store).length;
-  if (existingApiKeyCount + apiKeys.length < 2) {
+  if (apiKeys.length === 0) {
+    return undefined;
+  }
+  if (existingApiKeyCount > 0 && existingApiKeyCount + apiKeys.length < 2) {
     return undefined;
   }
   return apiKeys.map((apiKey, index) => ({
