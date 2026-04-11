@@ -676,4 +676,66 @@ describe("zai provider plugin", () => {
       }
     }
   });
+
+  it("persists a single-item ZAI_API_KEYS list when non-interactive auth resolves through profile fallback", async () => {
+    const provider = await registerSingleProviderPlugin(plugin);
+    const method = provider.auth.find((entry) => entry.id === "api-key");
+    expect(method?.runNonInteractive).toBeDefined();
+
+    const resolveApiKey = vi.fn(async () => ({ key: "sk-zai-single", source: "profile" as const }));
+    const toApiKeyCredential = vi.fn(({ provider, resolved }) => ({
+      type: "api_key" as const,
+      provider,
+      key: resolved.key,
+    }));
+    const previousZaiApiKeys = process.env.ZAI_API_KEYS;
+    process.env.ZAI_API_KEYS = "sk-zai-single";
+
+    try {
+      const result = await method?.runNonInteractive?.({
+        authChoice: "zai-api-key",
+        config: { agents: { defaults: {} } },
+        baseConfig: { agents: { defaults: {} } },
+        opts: {},
+        runtime: {
+          error: vi.fn(),
+          exit: vi.fn(),
+          log: vi.fn(),
+        } as never,
+        resolveApiKey,
+        toApiKeyCredential,
+      } as never);
+
+      expect(toApiKeyCredential).toHaveBeenCalledWith(
+        expect.objectContaining({
+          provider: "zai",
+          resolved: {
+            key: "sk-zai-single",
+            source: "env",
+            envVarName: "ZAI_API_KEYS",
+          },
+        }),
+      );
+      expect(upsertAuthProfile).toHaveBeenCalledWith(
+        expect.objectContaining({
+          profileId: "zai:default",
+          credential: {
+            type: "api_key",
+            provider: "zai",
+            key: "sk-zai-single",
+          },
+        }),
+      );
+      expect(result?.auth?.profiles?.["zai:default"]).toEqual({
+        provider: "zai",
+        mode: "api_key",
+      });
+    } finally {
+      if (previousZaiApiKeys === undefined) {
+        delete process.env.ZAI_API_KEYS;
+      } else {
+        process.env.ZAI_API_KEYS = previousZaiApiKeys;
+      }
+    }
+  });
 });

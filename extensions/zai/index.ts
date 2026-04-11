@@ -315,7 +315,6 @@ async function runZaiApiKeyAuthNonInteractive(
   });
   const singleListEnvKey = parseApiKeyList(process.env.ZAI_API_KEYS);
   if (
-    ctx.secretInputMode === "ref" &&
     !normalizeOptionalSecretInput(ctx.opts.zaiApiKey) &&
     (!resolved || resolved.source === "profile") &&
     singleListEnvKey.length === 1
