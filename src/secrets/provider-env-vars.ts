@@ -43,6 +43,30 @@ function appendUniqueEnvVarCandidates(
   }
 }
 
+function mergeProviderEnvVarCandidates(
+  ...sources: Array<{
+    candidates: Record<string, readonly string[]>;
+    position?: "append" | "prepend";
+  }>
+): Record<string, string[]> {
+  const merged = Object.create(null) as Record<string, string[]>;
+  for (const source of sources) {
+    for (const [providerId, keys] of Object.entries(source.candidates).toSorted(([left], [right]) =>
+      left.localeCompare(right),
+    )) {
+      if (source.position === "prepend") {
+        const next = Object.create(null) as Record<string, string[]>;
+        appendUniqueEnvVarCandidates(next, providerId, keys);
+        appendUniqueEnvVarCandidates(next, providerId, merged[providerId] ?? []);
+        merged[providerId] = next[providerId] ?? [];
+        continue;
+      }
+      appendUniqueEnvVarCandidates(merged, providerId, keys);
+    }
+  }
+  return merged;
+}
+
 function resolveManifestProviderEnvVarCandidates(params?: ProviderEnvVarLookupParams): {
   auth: Record<string, string[]>;
   all: Record<string, string[]>;
@@ -93,20 +117,22 @@ function resolveManifestProviderEnvVarCandidates(params?: ProviderEnvVarLookupPa
 export function resolveProviderAuthEnvVarCandidates(
   params?: ProviderEnvVarLookupParams,
 ): Record<string, readonly string[]> {
-  return {
-    ...resolveManifestProviderEnvVarCandidates(params).auth,
-    ...CORE_PROVIDER_AUTH_ENV_VAR_CANDIDATES,
-  };
+  const manifestCandidates = resolveManifestProviderEnvVarCandidates(params);
+  return mergeProviderEnvVarCandidates(
+    { candidates: CORE_PROVIDER_AUTH_ENV_VAR_CANDIDATES },
+    { candidates: manifestCandidates.auth },
+  );
 }
 
 export function resolveProviderEnvVars(
   params?: ProviderEnvVarLookupParams,
 ): Record<string, readonly string[]> {
-  return {
-    ...resolveManifestProviderEnvVarCandidates(params).all,
-    ...CORE_PROVIDER_AUTH_ENV_VAR_CANDIDATES,
-    ...CORE_PROVIDER_SETUP_ENV_VAR_OVERRIDES,
-  };
+  const manifestCandidates = resolveManifestProviderEnvVarCandidates(params);
+  return mergeProviderEnvVarCandidates(
+    { candidates: CORE_PROVIDER_AUTH_ENV_VAR_CANDIDATES },
+    { candidates: manifestCandidates.all },
+    { candidates: CORE_PROVIDER_SETUP_ENV_VAR_OVERRIDES, position: "prepend" },
+  );
 }
 
 /**
