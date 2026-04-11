@@ -126,11 +126,13 @@ export function resolveAuthProfileOrder(params: {
 
   // Repair config/store profile-id drift from older setup flows:
   // if configured profile ids no longer exist in auth-profiles.json, scan the
-  // provider's stored credentials and use any valid entries.
-  const allBaseProfilesMissing = baseOrder.every((profileId) => !store.profiles[profileId]);
-  if (filtered.length === 0 && explicitProfiles.length > 0 && allBaseProfilesMissing) {
+  // provider's stored credentials and use any valid entries. Base candidates
+  // intentionally exclude runtime overlays so those do not mask drift repair.
+  const allBaseCandidatesMissing =
+    baseCandidates.length > 0 && baseCandidates.every((profileId) => !store.profiles[profileId]);
+  if (explicitProfiles.length > 0 && allBaseCandidatesMissing) {
     const storeProfiles = listProfilesForProvider(store, provider);
-    filtered = storeProfiles.filter(isValidProfile);
+    filtered = dedupeProfileIds([...filtered, ...storeProfiles.filter(isValidProfile)]);
   }
 
   const deduped = dedupeProfileIds(filtered);

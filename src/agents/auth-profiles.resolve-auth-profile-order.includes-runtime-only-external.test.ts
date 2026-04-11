@@ -243,4 +243,43 @@ describe("resolveAuthProfileOrder runtime-only external profiles", () => {
 
     expect(order).toEqual(["zai:default", "zai:runtime-live-override"]);
   });
+
+  it("repairs stale configured profile ids even when a runtime-only overlay is present", () => {
+    listRuntimeOnlyExternalAuthProfilesMock.mockReturnValueOnce([
+      { profileId: "openai-codex:runtime-env-1", selectionPriority: "default" },
+    ]);
+
+    const order = resolveAuthProfileOrder({
+      cfg: {
+        auth: {
+          profiles: {
+            "openai-codex:default": {
+              provider: "openai-codex",
+              mode: "oauth",
+            },
+          },
+          order: {
+            "openai-codex": ["openai-codex:default"],
+          },
+        },
+      },
+      store: createStore({
+        "openai-codex:user@example.com": {
+          type: "oauth",
+          provider: "openai-codex",
+          access: "access-token",
+          refresh: "refresh-token",
+          expires: Date.now() + 60_000,
+        },
+        "openai-codex:runtime-env-1": {
+          type: "api_key",
+          provider: "openai-codex",
+          key: "sk-openai-runtime",
+        },
+      }),
+      provider: "openai-codex",
+    });
+
+    expect(order).toEqual(["openai-codex:runtime-env-1", "openai-codex:user@example.com"]);
+  });
 });
