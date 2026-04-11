@@ -43,42 +43,58 @@ function appendUniqueEnvVarCandidates(
   }
 }
 
-function resolveManifestProviderAuthEnvVarCandidates(
-  params?: ProviderEnvVarLookupParams,
-): Record<string, string[]> {
+function resolveManifestProviderEnvVarCandidates(params?: ProviderEnvVarLookupParams): {
+  auth: Record<string, string[]>;
+  all: Record<string, string[]>;
+} {
   const registry = loadPluginManifestRegistry({
     config: params?.config,
     workspaceDir: params?.workspaceDir,
     env: params?.env,
   });
-  const candidates: Record<string, string[]> = {};
+  const authCandidates: Record<string, string[]> = Object.create(null) as Record<string, string[]>;
+  const allCandidates: Record<string, string[]> = Object.create(null) as Record<string, string[]>;
   for (const plugin of registry.plugins) {
-    if (!plugin.providerAuthEnvVars) {
-      continue;
+    if (plugin.providerAuthEnvVars) {
+      for (const [providerId, keys] of Object.entries(plugin.providerAuthEnvVars).toSorted(
+        ([left], [right]) => left.localeCompare(right),
+      )) {
+        appendUniqueEnvVarCandidates(authCandidates, providerId, keys);
+        appendUniqueEnvVarCandidates(allCandidates, providerId, keys);
+      }
     }
-    for (const [providerId, keys] of Object.entries(plugin.providerAuthEnvVars).toSorted(
-      ([left], [right]) => left.localeCompare(right),
-    )) {
-      appendUniqueEnvVarCandidates(candidates, providerId, keys);
+    if (plugin.providerSecretEnvVars) {
+      for (const [providerId, keys] of Object.entries(plugin.providerSecretEnvVars).toSorted(
+        ([left], [right]) => left.localeCompare(right),
+      )) {
+        appendUniqueEnvVarCandidates(allCandidates, providerId, keys);
+      }
     }
   }
   const aliases = resolveProviderAuthAliasMap(params);
   for (const [alias, target] of Object.entries(aliases).toSorted(([left], [right]) =>
     left.localeCompare(right),
   )) {
-    const keys = candidates[target];
-    if (keys) {
-      appendUniqueEnvVarCandidates(candidates, alias, keys);
+    const authKeys = authCandidates[target];
+    if (authKeys) {
+      appendUniqueEnvVarCandidates(authCandidates, alias, authKeys);
+    }
+    const allKeys = allCandidates[target];
+    if (allKeys) {
+      appendUniqueEnvVarCandidates(allCandidates, alias, allKeys);
     }
   }
-  return candidates;
+  return {
+    auth: authCandidates,
+    all: allCandidates,
+  };
 }
 
 export function resolveProviderAuthEnvVarCandidates(
   params?: ProviderEnvVarLookupParams,
 ): Record<string, readonly string[]> {
   return {
-    ...resolveManifestProviderAuthEnvVarCandidates(params),
+    ...resolveManifestProviderEnvVarCandidates(params).auth,
     ...CORE_PROVIDER_AUTH_ENV_VAR_CANDIDATES,
   };
 }
@@ -87,7 +103,8 @@ export function resolveProviderEnvVars(
   params?: ProviderEnvVarLookupParams,
 ): Record<string, readonly string[]> {
   return {
-    ...resolveProviderAuthEnvVarCandidates(params),
+    ...resolveManifestProviderEnvVarCandidates(params).all,
+    ...CORE_PROVIDER_AUTH_ENV_VAR_CANDIDATES,
     ...CORE_PROVIDER_SETUP_ENV_VAR_OVERRIDES,
   };
 }

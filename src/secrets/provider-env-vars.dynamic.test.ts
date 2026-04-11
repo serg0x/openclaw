@@ -5,6 +5,7 @@ type MockManifestRegistry = {
     id: string;
     origin: string;
     providerAuthEnvVars?: Record<string, string[]>;
+    providerSecretEnvVars?: Record<string, string[]>;
     providerAuthAliases?: Record<string, string>;
   }>;
   diagnostics: unknown[];
@@ -48,5 +49,29 @@ describe("provider env vars dynamic manifest metadata", () => {
     expect(mod.getProviderEnvVars("fireworks-plan")).toEqual(["FIREWORKS_ALT_API_KEY"]);
     expect(mod.listKnownProviderAuthEnvVarNames()).toContain("FIREWORKS_ALT_API_KEY");
     expect(mod.listKnownSecretEnvVarNames()).toContain("FIREWORKS_ALT_API_KEY");
+  });
+
+  it("keeps secret-only manifest env vars out of auth candidate resolution", async () => {
+    loadPluginManifestRegistry.mockReturnValue({
+      plugins: [
+        {
+          id: "external-zai",
+          origin: "global",
+          providerAuthEnvVars: {
+            zai: ["ZAI_API_KEY"],
+          },
+          providerSecretEnvVars: {
+            zai: ["ZAI_API_KEYS"],
+          },
+        },
+      ],
+      diagnostics: [],
+    });
+
+    const mod = await import("./provider-env-vars.js");
+
+    expect(mod.resolveProviderAuthEnvVarCandidates().zai).toEqual(["ZAI_API_KEY"]);
+    expect(mod.getProviderEnvVars("zai")).toEqual(["ZAI_API_KEY", "ZAI_API_KEYS"]);
+    expect(mod.listKnownSecretEnvVarNames()).toContain("ZAI_API_KEYS");
   });
 });

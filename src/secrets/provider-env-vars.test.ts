@@ -65,11 +65,11 @@ describe("provider env vars", () => {
     expect(getProviderEnvVars("fal")).toEqual(["FAL_KEY", "FAL_API_KEY"]);
     expect(getProviderEnvVars("zai")).toEqual([
       "ZAI_API_KEY",
-      "ZAI_API_KEYS",
       "ZAI_API_KEY_1",
       "ZAI_API_KEY_2",
       "Z_AI_API_KEY",
       "OPENCLAW_LIVE_ZAI_KEY",
+      "ZAI_API_KEYS",
     ]);
   });
 
