@@ -79,8 +79,9 @@ function authCredentialMatches(a: AuthProfileCredential, b: AuthProfileCredentia
       a.displayName === b.displayName &&
       a.enterpriseUrl === b.enterpriseUrl &&
       a.projectId === b.projectId &&
-      a.accountId === b.accountId &&
-      a.managedBy === b.managedBy
+      // `managedBy` is persistence/runtime metadata, not credential identity.
+      // Runtime overlays may omit it while synced stored credentials include it.
+      a.accountId === b.accountId
     );
   }
 

@@ -139,6 +139,25 @@ describe("auth external oauth helpers", () => {
     expect(shouldPersist).toBe(true);
   });
 
+  it("omits runtime-only oauth overlays when managedBy is the only difference", () => {
+    const persistedCredential = createCredential({ managedBy: "codex-cli" });
+    const runtimeCredential = createCredential();
+    resolveExternalAuthProfilesWithPluginsMock.mockReturnValueOnce([
+      {
+        profileId: "openai-codex:default",
+        credential: runtimeCredential,
+      },
+    ]);
+
+    const shouldPersist = shouldPersistExternalOAuthProfile({
+      store: createStore({ "openai-codex:default": runtimeCredential }),
+      profileId: "openai-codex:default",
+      credential: persistedCredential,
+    });
+
+    expect(shouldPersist).toBe(false);
+  });
+
   it("omits exact runtime-only api-key overlays from persisted store writes", () => {
     const credential = createApiKeyCredential();
     resolveExternalAuthProfilesWithPluginsMock.mockReturnValueOnce([
